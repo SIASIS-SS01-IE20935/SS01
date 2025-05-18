@@ -43,7 +43,7 @@ class SocketServer {
     // Ruta de prueba
     this.app.get("/", (_req, res) => {
       res.send(
-        "API del Sistema de Control de Asistencia - I.E. 20935 Asunción 8"
+        "Servidor de Sockets del Sistema de Control de Asistencia - I.E. 20935 Asunción 8"
       );
     });
   }
