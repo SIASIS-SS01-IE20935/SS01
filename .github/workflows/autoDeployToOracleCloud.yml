@@ -1,0 +1,116 @@
+name: Auto Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH Key
+        run: |
+          echo "🔑 Configurando clave SSH para acceso a servidor..."
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SS01_ORACLE_CLOUD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Agregar servidor a known_hosts para evitar prompt de verificación
+          ssh-keyscan -H ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} >> ~/.ssh/known_hosts
+          
+          echo "✅ Clave SSH configurada correctamente"
+
+      - name: Deploy to Oracle Cloud Server
+        run: |
+          echo "🚀 Iniciando deploy en servidor Oracle Cloud..."
+          echo "📍 Servidor: ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }}"
+          echo "👤 Usuario: ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}"
+          echo "📂 Ruta del proyecto: ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"
+          
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} << 'EOF'
+            echo "🔍 Accediendo al directorio del proyecto..."
+            cd ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}
+            
+            echo "📂 Verificando directorio actual:"
+            pwd
+            ls -la
+            
+            echo "🔄 Actualizando código desde repositorio..."
+            git pull origin master
+            
+            echo "📦 Instalando/actualizando dependencias..."
+            npm install --production
+            
+            echo "🏗️ Compilando proyecto TypeScript..."
+            npm run build
+            
+            echo "🔄 Reiniciando servicio PM2..."
+            sudo pm2 restart siasis-https || sudo pm2 start dist/index.js --name siasis-https
+            
+            echo "📊 Verificando estado del servicio..."
+            sudo pm2 status
+            sudo pm2 logs siasis-https --lines 5 --nostream
+            
+            echo "✅ Deploy completado exitosamente!"
+          EOF
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verificando que el servidor esté respondiendo..."
+          
+          # Esperar unos segundos para que el servicio se inicie completamente
+          sleep 15
+          
+          # Construir URL basándose en variables de entorno
+          SERVER_URL="https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}"
+          echo "🌐 Verificando: $SERVER_URL"
+          
+          # Verificar que el servidor responde
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$SERVER_URL" --max-time 30 || echo "000")
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Servidor responde correctamente (HTTP $response)"
+            echo "🌐 Sitio accesible en: $SERVER_URL"
+            echo "🎉 Deploy exitoso!"
+          else
+            echo "⚠️ Servidor no responde como se esperaba (HTTP $response)"
+            echo "🔍 Verificando logs del servidor..."
+            
+            # Conectar y obtener logs si hay problemas
+            ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} << 'EOF'
+              echo "📋 Últimos logs de PM2:"
+              cd ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}
+              sudo pm2 logs siasis-https --lines 15 --nostream
+              
+              echo "🔍 Estado de PM2:"
+              sudo pm2 status
+              
+              echo "🌐 Verificando puerto 443:"
+              sudo ss -tlnp | grep :443
+              
+              echo "🔍 Verificando proceso Node.js:"
+              ps aux | grep node
+            EOF
+            
+            # Marcar como fallo pero no detener el workflow
+            exit 1
+          fi
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "📊 RESUMEN DEL DEPLOYMENT"
+          echo "=========================="
+          echo "🏷️ Repositorio: ${{ github.repository }}"
+          echo "🌿 Rama: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "👤 Autor: ${{ github.actor }}"
+          echo "⏰ Tiempo: $(date)"
+          echo "📍 Servidor: ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }}"
+          echo "📂 Ruta: ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"
+          echo "🌐 URL: https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}"
+          echo "=========================="
