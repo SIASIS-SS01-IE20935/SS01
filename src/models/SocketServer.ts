@@ -11,9 +11,9 @@ import Sockets from "./Sockets";
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
-const USE_HTTPS = process.env.USE_HTTPS === 'true';
-const SSL_KEY_PATH = process.env.SSL_KEY_PATH || './ssl/private.key';
-const SSL_CERT_PATH = process.env.SSL_CERT_PATH || './ssl/certificate.crt';
+const USE_HTTPS = process.env.USE_HTTPS === "true";
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || "./ssl/private.key";
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || "./ssl/certificate.crt";
 
 class SocketServer {
   public app: ReturnType<typeof express>;
@@ -24,24 +24,28 @@ class SocketServer {
   constructor() {
     this.app = express();
     this.port = Number(PORT);
-    
+
     // Crear servidor HTTP o HTTPS según configuración
     if (USE_HTTPS && this.port === 443) {
       try {
+        console.log("🔍 Intentando cargar certificados SSL...");
+        console.log(`📄 Key: ${SSL_KEY_PATH}`);
+        console.log(`📄 Cert: ${SSL_CERT_PATH}`);
+
         const sslOptions = {
           key: fs.readFileSync(SSL_KEY_PATH),
-          cert: fs.readFileSync(SSL_CERT_PATH)
+          cert: fs.readFileSync(SSL_CERT_PATH),
         };
         this.server = https.createServer(sslOptions, this.app);
-        console.log('🔒 Servidor HTTPS configurado');
+        console.log("🔒 Servidor HTTPS configurado correctamente");
       } catch (error) {
-        console.error('❌ Error al cargar certificados SSL:', error);
-        console.log('🔄 Fallback a HTTP...');
+        console.error("❌ Error al cargar certificados SSL:", error);
+        console.log("🔄 Fallback a HTTP...");
         this.server = http.createServer(this.app);
       }
     } else {
       this.server = http.createServer(this.app);
-      console.log('🌐 Servidor HTTP configurado');
+      console.log("🌐 Servidor HTTP configurado");
     }
 
     this.io = new Server(this.server, {
@@ -53,18 +57,19 @@ class SocketServer {
   }
 
   middlewares() {
-    // Middleware de seguridad para HTTPS
-    if (USE_HTTPS) {
-      this.app.use((req, res, next) => {
-        if (req.header('x-forwarded-proto') !== 'https') {
-          res.redirect(`https://${req.header('host')}${req.url}`);
-        } else {
-          next();
-        }
-      });
-    }
+    // ELIMINAMOS el middleware de redirección que causaba el loop
+    // ❌ ESTE CÓDIGO CAUSABA EL PROBLEMA:
+    // if (USE_HTTPS) {
+    //   this.app.use((req, res, next) => {
+    //     if (req.header('x-forwarded-proto') !== 'https') {
+    //       res.redirect(`https://${req.header('host')}${req.url}`);
+    //     } else {
+    //       next();
+    //     }
+    //   });
+    // }
 
-    // Middleware
+    // Middleware básico
     this.app.use(cors());
     this.app.use(express.json());
 
@@ -90,10 +95,21 @@ class SocketServer {
     // Inicializar sockets
     this.configurarSockets();
 
-    // Inicializar Server
-    this.server.listen(this.port, () => {
-      const protocol = USE_HTTPS ? 'https' : 'http';
-      console.log(`🚀 Server corriendo en ${protocol}://localhost:${this.port}`);
+    // Inicializar Server - Escuchar en todas las interfaces
+    this.server.listen(Number(this.port), "0.0.0.0", () => {
+      const protocol = USE_HTTPS ? "https" : "http";
+      console.log(`🚀 Server corriendo en ${protocol}://0.0.0.0:${this.port}`);
+      console.log(
+        `🌐 Accesible desde: ${protocol}://siasis-ss01-ie20935.duckdns.org`
+      );
+
+      // Información adicional de debug
+      console.log(`📊 Configuración:`);
+      console.log(`   - Puerto: ${this.port}`);
+      console.log(`   - HTTPS: ${USE_HTTPS}`);
+      console.log(
+        `   - Certificados: ${USE_HTTPS ? "Cargados" : "No requeridos"}`
+      );
     });
   }
 }
