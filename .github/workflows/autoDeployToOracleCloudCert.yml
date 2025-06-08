@@ -57,23 +57,38 @@ jobs:
             git pull origin master
             
             echo "📦 Instalando/actualizando dependencias..."
-            npm install --production
+            npm ci
+            
+            echo "📦 Instalando dependencias de desarrollo para compilación..."
+            npm install --save-dev @types/jsonwebtoken @types/node @types/express @types/cors
             
             echo "🏗️ Compilando proyecto TypeScript..."
             npm run build
             
             echo "🔄 Reiniciando SOLO servicio PM2 CERTIFICACIÓN (sin afectar DEV)..."
-            # Solo reiniciar siasis-cert, NO usar 'pm2 restart all'
-            sudo pm2 restart siasis-cert || sudo pm2 start dist/index.js --name siasis-cert
+            # Parar proceso específico de CERT (usuario ubuntu, no sudo)
+            pm2 stop siasis-cert 2>/dev/null || true
+            
+            # Iniciar con ecosystem para asegurar variables correctas (usuario ubuntu)
+            pm2 start ecosystem.config.js
+            
+            # Verificar que se inició correctamente
+            if pm2 list | grep -q "siasis-cert.*online"; then
+              echo "✅ siasis-cert iniciado correctamente"
+            else
+              echo "⚠️ Problemas al iniciar siasis-cert, reintentando..."
+              pm2 delete siasis-cert 2>/dev/null || true
+              pm2 start ecosystem.config.js
+            fi
             
             echo "📊 Verificando estado de AMBOS servicios..."
-            sudo pm2 status
+            pm2 status
             
             echo "✅ Logs específicos de CERTIFICACIÓN:"
-            sudo pm2 logs siasis-cert --lines 5 --nostream
+            pm2 logs siasis-cert --lines 5 --nostream
             
             echo "🛠️ Verificando que DESARROLLO sigue funcionando..."
-            if sudo pm2 list | grep -q "siasis-dev.*online"; then
+            if pm2 list | grep -q "siasis-dev.*online"; then
               echo "✅ DESARROLLO sigue corriendo correctamente"
             else
               echo "⚠️ DESARROLLO podría estar afectado - verificar manualmente"
@@ -118,10 +133,10 @@ jobs:
             ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} '
               echo "📋 Últimos logs de PM2 CERTIFICACIÓN:"
               cd '"${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"'
-              sudo pm2 logs siasis-cert --lines 15 --nostream
+              pm2 logs siasis-cert --lines 15 --nostream
               
               echo "🔍 Estado completo de PM2 (DEV + CERT):"
-              sudo pm2 status
+              pm2 status
               
               echo "🌐 Verificando puerto 5001 (CERT):"
               sudo ss -tlnp | grep :5001

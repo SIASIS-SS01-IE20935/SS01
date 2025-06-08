@@ -108,7 +108,7 @@ class SocketServer {
         const envName = this.getEnvironmentName();
         const emoji = this.getEnvironmentEmoji();
         res.json({
-          message: `${emoji} Servidor de Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 | ${new Date().getFullYear()}`,
+          message: `${emoji} Servidor de Web Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 | ${new Date().getFullYear()}`,
           environment: envName,
           basePath: BASE_PATH,
           port: Number(this.port),
@@ -137,7 +137,7 @@ class SocketServer {
         if (ENTORNO === "L") {
           // Respuesta JSON para LOCAL (más informativa para desarrollo)
           res.json({
-            message: `${emoji} Servidor de Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 | 2025`,
+            message: `${emoji} Servidor de Web Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 | ${new Date().getFullYear()}`,
             environment: envName,
             port: Number(this.port),
             timestamp: new Date().toISOString(),
@@ -147,7 +147,7 @@ class SocketServer {
         } else {
           // Respuesta texto para PRODUCCIÓN (mantiene retrocompatibilidad)
           res.send(
-            `🚀 Servidor de Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 2025 | ${new Date().getFullYear()}`
+            `🚀 Servidor de Web Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 | ${new Date().getFullYear()}`
           );
         }
       });
