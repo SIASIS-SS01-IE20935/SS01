@@ -2,7 +2,7 @@
 // import http from 'http';
 // import cors from 'cors';
 import dotenv from "dotenv";
-import SocketServer from "./models/SocketServer";
+import SocketServer from "./server/SocketServer";
 
 // import configureSocket from './config/socket';
 

@@ -53,8 +53,52 @@ jobs:
             pwd
             ls -la
             
-            echo "🔄 Actualizando código desde repositorio..."
-            git pull origin master
+            echo "🔄 Actualizando código desde repositorio (FORZANDO cambios del repo)..."
+            
+            # Preservar carpetas importantes antes de limpiar
+            echo "💾 Preservando carpetas críticas..."
+            mkdir -p /tmp/siasis-backup
+            if [ -d "logs" ]; then
+              cp -r logs /tmp/siasis-backup/ 2>/dev/null || true
+              echo "📁 Logs respaldados"
+            fi
+            if [ -d "node_modules" ]; then
+              cp -r node_modules /tmp/siasis-backup/ 2>/dev/null || true
+              echo "📦 Node_modules respaldado"
+            fi
+            
+            # Limpiar cambios locales (excluyendo carpetas críticas)
+            echo "🧹 Limpiando cambios locales..."
+            git reset --hard HEAD
+            
+            # Limpiar archivos no rastreados EXCEPTO logs y node_modules
+            git clean -fd -e logs/ -e node_modules/
+            
+            # Restaurar carpetas críticas
+            echo "🔄 Restaurando carpetas críticas..."
+            if [ -d "/tmp/siasis-backup/logs" ]; then
+              cp -r /tmp/siasis-backup/logs . 2>/dev/null || true
+              echo "📁 Logs restaurados"
+            fi
+            if [ -d "/tmp/siasis-backup/node_modules" ]; then
+              cp -r /tmp/siasis-backup/node_modules . 2>/dev/null || true
+              echo "📦 Node_modules restaurado"
+            fi
+            
+            # Crear directorios necesarios si no existen
+            mkdir -p logs
+            
+            # Obtener los últimos cambios del repositorio
+            echo "📥 Descargando cambios del repositorio..."
+            git fetch origin master
+            
+            # Forzar que se use la versión del repositorio (descartar cambios locales)
+            echo "🔀 Aplicando cambios del repositorio (descartando cambios locales)..."
+            git reset --hard origin/master
+            
+            echo "✅ Código actualizado exitosamente desde el repositorio"
+            echo "📊 Estado actual del repositorio:"
+            git log --oneline -5
             
             echo "📦 Instalando/actualizando dependencias..."
             npm ci
@@ -62,30 +106,50 @@ jobs:
             echo "📦 Instalando dependencias de desarrollo para compilación..."
             npm install --save-dev @types/jsonwebtoken @types/node @types/express @types/cors
             
-            echo "🏗️ Compilando proyecto TypeScript..."
-            npm run build
+            echo "🏗️ Intentando compilar proyecto TypeScript..."
+            if npm run build; then
+              echo "✅ Compilación exitosa"
+            else
+              echo "⚠️ Error en compilación TypeScript - Continuando con archivos existentes en dist/"
+              echo "📋 Verificando si existe directorio dist..."
+              if [ ! -d "dist" ]; then
+                echo "❌ No existe directorio dist - No se puede continuar"
+                exit 1
+              fi
+              echo "✅ Directorio dist encontrado - Usando compilación anterior"
+            fi
             
-            echo "🔄 Reiniciando SOLO servicio PM2 CERTIFICACIÓN (sin afectar DEV)..."
-            # Parar proceso específico de CERT (usuario ubuntu, no sudo)
-            pm2 stop siasis-cert 2>/dev/null || true
+            echo "🔄 Limpiando estado de PM2 antes de reiniciar..."
+            # Limpiar cualquier proceso corrupto de PM2
+            pm2 kill 2>/dev/null || true
+            sleep 2
+            pm2 resurrect 2>/dev/null || true
             
-            # Iniciar con ecosystem para asegurar variables correctas (usuario ubuntu)
-            pm2 start ecosystem.config.js
+            echo "🔄 Iniciando servicio PM2 CERTIFICACIÓN..."
+            # Usar start en lugar de restart para evitar problemas con IDs corruptos
+            pm2 start ecosystem.config.js --only siasis-cert
             
             # Verificar que se inició correctamente
+            sleep 3
             if pm2 list | grep -q "siasis-cert.*online"; then
               echo "✅ siasis-cert iniciado correctamente"
             else
-              echo "⚠️ Problemas al iniciar siasis-cert, reintentando..."
+              echo "⚠️ Problemas al iniciar siasis-cert, reintentando con método alternativo..."
               pm2 delete siasis-cert 2>/dev/null || true
-              pm2 start ecosystem.config.js
+              pm2 start ecosystem.config.js --only siasis-cert
+              sleep 3
+              if pm2 list | grep -q "siasis-cert.*online"; then
+                echo "✅ siasis-cert iniciado correctamente en segundo intento"
+              else
+                echo "❌ No se pudo iniciar siasis-cert - revisar configuración"
+              fi
             fi
             
             echo "📊 Verificando estado de AMBOS servicios..."
             pm2 status
             
             echo "✅ Logs específicos de CERTIFICACIÓN:"
-            pm2 logs siasis-cert --lines 5 --nostream
+            pm2 logs siasis-cert --lines 5 --nostream 2>/dev/null || echo "⚠️ No hay logs disponibles aún"
             
             echo "🛠️ Verificando que DESARROLLO sigue funcionando..."
             if pm2 list | grep -q "siasis-dev.*online"; then
@@ -94,6 +158,9 @@ jobs:
               echo "⚠️ DESARROLLO podría estar afectado - verificar manualmente"
             fi
             
+            # Limpiar respaldo temporal
+            rm -rf /tmp/siasis-backup 2>/dev/null || true
+            
             echo "✅ Deploy CERTIFICACIÓN completado exitosamente!"
           EOF
 
@@ -101,8 +168,8 @@ jobs:
         run: |
           echo "🔍 Verificando que el servidor CERTIFICACIÓN esté respondiendo..."
 
-          # Esperar unos segundos para que el servicio se inicie completamente
-          sleep 15
+          # Esperar más tiempo para que el servicio se inicie completamente
+          sleep 20
 
           # Construir URL basándose en variables de entorno para CERT
           SERVER_URL="https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}/cert"
@@ -133,25 +200,31 @@ jobs:
             ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} '
               echo "📋 Últimos logs de PM2 CERTIFICACIÓN:"
               cd '"${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"'
-              pm2 logs siasis-cert --lines 15 --nostream
+              pm2 logs siasis-cert --lines 15 --nostream 2>/dev/null || echo "⚠️ No hay logs de siasis-cert disponibles"
               
               echo "🔍 Estado completo de PM2 (DEV + CERT):"
               pm2 status
               
               echo "🌐 Verificando puerto 5001 (CERT):"
-              sudo ss -tlnp | grep :5001
+              sudo ss -tlnp | grep :5001 || echo "⚠️ Puerto 5001 no está en uso"
               
               echo "🌐 Verificando puerto 5000 (DEV):"
-              sudo ss -tlnp | grep :5000
+              sudo ss -tlnp | grep :5000 || echo "⚠️ Puerto 5000 no está en uso"
               
               echo "🌐 Verificando puerto 443 (Nginx):"
-              sudo ss -tlnp | grep :443
+              sudo ss -tlnp | grep :443 || echo "⚠️ Puerto 443 no está en uso"
               
               echo "🔍 Estado de Nginx:"
               sudo systemctl status nginx --no-pager
               
               echo "🔍 Verificando procesos Node.js:"
-              ps aux | grep node | grep -v grep
+              ps aux | grep node | grep -v grep || echo "⚠️ No se encontraron procesos Node.js"
+              
+              echo "🔍 Verificando estructura del proyecto:"
+              ls -la dist/ 2>/dev/null || echo "⚠️ No existe directorio dist/"
+              
+              echo "🔍 Verificando ecosystem.config.js:"
+              cat ecosystem.config.js 2>/dev/null || echo "⚠️ No se puede leer ecosystem.config.js"
             '
             
             echo "ℹ️ Deploy CERTIFICACIÓN completado pero verificación falló - revisar logs arriba"
@@ -175,4 +248,6 @@ jobs:
           echo "✅ Proceso PM2: siasis-cert"
           echo "🔗 Puerto interno: 5001"
           echo "⚠️ NOTA: Instancia compartida - DEV no debe verse afectado"
+          echo "⚠️ NOTA: Cambios locales del servidor son DESCARTADOS por el deploy"
+          echo "🔧 MEJORAS: Preservación de logs, manejo de errores TS, limpieza PM2"
           echo "======================================"

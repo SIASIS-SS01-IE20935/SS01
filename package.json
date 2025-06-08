@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "nodemon src/index.ts",
+    "postinstall": "prisma generate",
     "start": "npm run build && node dist/index.js"
   },
   "repository": {
@@ -22,6 +23,7 @@
   },
   "homepage": "https://github.com/GeoCoderDev/SS01-SIASIS#readme",
   "dependencies": {
+    "@prisma/client": "^6.4.1",
     "@types/express": "^5.0.0",
     "@types/socket.io": "^3.0.1",
     "cors": "^2.8.5",
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "@types/dotenv": "^6.1.1",
-    "@types/jsonwebtoken": "^9.0.9"
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/socket.io-client": "^1.4.36"
   }
 }

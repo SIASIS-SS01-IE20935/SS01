@@ -6,3 +6,5 @@ dist
 *.pub
 *.ppk
 ssl
+
+ecosystem.config.js
