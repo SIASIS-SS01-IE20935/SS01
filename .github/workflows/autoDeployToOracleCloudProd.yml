@@ -1,4 +1,4 @@
-name: Auto Deploy to Oracle Cloud
+name: Auto Deploy to Oracle Cloud PROD IE20935
 
 on:
   push:
@@ -7,14 +7,26 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Solo ejecutar si el entorno es PRODUCCIÓN
+    if: ${{ vars.ENTORNO == 'P' }}
 
     steps:
+      - name: Validate Environment
+        run: |
+          echo "🔍 Validando entorno de deployment..."
+          if [ "${{ vars.ENTORNO }}" != "P" ]; then
+            echo "❌ Este workflow solo debe ejecutarse en ambiente PRODUCCIÓN (P)"
+            echo "🏷️ Entorno detectado: ${{ vars.ENTORNO }}"
+            exit 1
+          fi
+          echo "✅ Entorno PRODUCCIÓN validado correctamente"
+
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Setup SSH Key
         run: |
-          echo "🔑 Configurando clave SSH para acceso a servidor..."
+          echo "🔑 Configurando clave SSH para acceso a servidor PRODUCCIÓN..."
           mkdir -p ~/.ssh
           echo "${{ secrets.SS01_ORACLE_CLOUD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
@@ -24,15 +36,16 @@ jobs:
 
           echo "✅ Clave SSH configurada correctamente"
 
-      - name: Deploy to Oracle Cloud Server
+      - name: Deploy to Oracle Cloud PROD Server
         run: |
-          echo "🚀 Iniciando deploy en servidor Oracle Cloud..."
+          echo "🚀 Iniciando deploy en servidor Oracle Cloud PRODUCCIÓN..."
+          echo "🏷️ Entorno: PRODUCCIÓN (P)"
           echo "📍 Servidor: ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }}"
           echo "👤 Usuario: ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}"
           echo "📂 Ruta del proyecto: ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"
 
           ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} << 'EOF'
-            echo "🔍 Accediendo al directorio del proyecto..."
+            echo "🔍 Accediendo al directorio del proyecto PRODUCCIÓN..."
             cd ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}
             
             echo "📂 Verificando directorio actual:"
@@ -48,41 +61,41 @@ jobs:
             echo "🏗️ Compilando proyecto TypeScript..."
             npm run build
             
-            echo "🔄 Reiniciando servicio PM2..."
+            echo "🔄 Reiniciando servicio PM2 PRODUCCIÓN..."
             sudo pm2 restart siasis-https || sudo pm2 start dist/index.js --name siasis-https
             
             echo "📊 Verificando estado del servicio..."
             sudo pm2 status
             sudo pm2 logs siasis-https --lines 5 --nostream
             
-            echo "✅ Deploy completado exitosamente!"
+            echo "✅ Deploy PRODUCCIÓN completado exitosamente!"
           EOF
 
-      - name: Verify Deployment
+      - name: Verify PROD Deployment
         run: |
-          echo "🔍 Verificando que el servidor esté respondiendo..."
+          echo "🔍 Verificando que el servidor PRODUCCIÓN esté respondiendo..."
 
           # Esperar unos segundos para que el servicio se inicie completamente
           sleep 15
 
           # Construir URL basándose en variables de entorno
           SERVER_URL="https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}"
-          echo "🌐 Verificando: $SERVER_URL"
+          echo "🌐 Verificando PRODUCCIÓN: $SERVER_URL"
 
           # Verificar que el servidor responde
           response=$(curl -s -o /dev/null -w "%{http_code}" "$SERVER_URL" --max-time 30 || echo "000")
 
           if [ "$response" = "200" ]; then
-            echo "✅ Servidor responde correctamente (HTTP $response)"
-            echo "🌐 Sitio accesible en: $SERVER_URL"
-            echo "🎉 Deploy exitoso!"
+            echo "✅ Servidor PRODUCCIÓN responde correctamente (HTTP $response)"
+            echo "🌐 Sitio PRODUCCIÓN accesible en: $SERVER_URL"
+            echo "🎉 Deploy PRODUCCIÓN exitoso!"
           else
-            echo "⚠️ Servidor no responde como se esperaba (HTTP $response)"
-            echo "🔍 Obteniendo logs del servidor para diagnóstico..."
+            echo "⚠️ Servidor PRODUCCIÓN no responde como se esperaba (HTTP $response)"
+            echo "🔍 Obteniendo logs del servidor PRODUCCIÓN para diagnóstico..."
             
             # Crear script temporal para obtener logs
             ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} '
-              echo "📋 Últimos logs de PM2:"
+              echo "📋 Últimos logs de PM2 PRODUCCIÓN:"
               cd '"${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"'
               sudo pm2 logs siasis-https --lines 15 --nostream
               
@@ -96,14 +109,15 @@ jobs:
               ps aux | grep node
             '
             
-            echo "ℹ️ Deploy completado pero verificación falló - revisar logs arriba"
+            echo "ℹ️ Deploy PRODUCCIÓN completado pero verificación falló - revisar logs arriba"
           fi
 
-      - name: Deployment Summary
+      - name: PROD Deployment Summary
         if: always()
         run: |
-          echo "📊 RESUMEN DEL DEPLOYMENT"
-          echo "=========================="
+          echo "📊 RESUMEN DEL DEPLOYMENT PRODUCCIÓN"
+          echo "===================================="
+          echo "🏷️ Entorno: PRODUCCIÓN (P)"
           echo "🏷️ Repositorio: ${{ github.repository }}"
           echo "🌿 Rama: ${{ github.ref_name }}"
           echo "📝 Commit: ${{ github.sha }}"
@@ -112,4 +126,5 @@ jobs:
           echo "📍 Servidor: ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }}"
           echo "📂 Ruta: ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"
           echo "🌐 URL: https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}"
-          echo "=========================="
+          echo "🚀 Proceso PM2: siasis-https"
+          echo "===================================="

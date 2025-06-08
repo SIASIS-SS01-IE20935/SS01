@@ -1,0 +1,163 @@
+name: Auto Deploy to Oracle Cloud DEV IE20935
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Solo ejecutar si el entorno es DESARROLLO
+    if: ${{ vars.ENTORNO == 'D' }}
+
+    steps:
+      - name: Validate Environment
+        run: |
+          echo "🔍 Validando entorno de deployment..."
+          if [ "${{ vars.ENTORNO }}" != "D" ]; then
+            echo "❌ Este workflow solo debe ejecutarse en ambiente DESARROLLO (D)"
+            echo "🏷️ Entorno detectado: ${{ vars.ENTORNO }}"
+            exit 1
+          fi
+          echo "✅ Entorno DESARROLLO validado correctamente"
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH Key
+        run: |
+          echo "🔑 Configurando clave SSH para acceso a servidor DESARROLLO..."
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SS01_ORACLE_CLOUD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Agregar servidor a known_hosts para evitar prompt de verificación
+          ssh-keyscan -H ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} >> ~/.ssh/known_hosts
+
+          echo "✅ Clave SSH configurada correctamente"
+
+      - name: Deploy to Oracle Cloud DEV Server
+        run: |
+          echo "🚀 Iniciando deploy en servidor Oracle Cloud DESARROLLO..."
+          echo "🏷️ Entorno: DESARROLLO (D)"
+          echo "📍 Servidor: ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }}"
+          echo "👤 Usuario: ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}"
+          echo "📂 Ruta del proyecto: ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"
+          echo "⚠️ PRECAUCIÓN: Instancia compartida con CERTIFICACIÓN - Deploy solo de DEV"
+
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} << 'EOF'
+            echo "🔍 Accediendo al directorio del proyecto DESARROLLO..."
+            cd ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}
+            
+            echo "📂 Verificando directorio actual:"
+            pwd
+            ls -la
+            
+            echo "🔄 Actualizando código desde repositorio..."
+            git pull origin master
+            
+            echo "📦 Instalando/actualizando dependencias..."
+            npm install --production
+            
+            echo "🏗️ Compilando proyecto TypeScript..."
+            npm run build
+            
+            echo "🔄 Reiniciando SOLO servicio PM2 DESARROLLO (sin afectar CERT)..."
+            # Solo reiniciar siasis-dev, NO usar 'pm2 restart all'
+            sudo pm2 restart siasis-dev || sudo pm2 start dist/index.js --name siasis-dev
+            
+            echo "📊 Verificando estado de AMBOS servicios..."
+            sudo pm2 status
+            
+            echo "🛠️ Logs específicos de DESARROLLO:"
+            sudo pm2 logs siasis-dev --lines 5 --nostream
+            
+            echo "✅ Verificando que CERTIFICACIÓN sigue funcionando..."
+            if sudo pm2 list | grep -q "siasis-cert.*online"; then
+              echo "✅ CERTIFICACIÓN sigue corriendo correctamente"
+            else
+              echo "⚠️ CERTIFICACIÓN podría estar afectada - verificar manualmente"
+            fi
+            
+            echo "✅ Deploy DESARROLLO completado exitosamente!"
+          EOF
+
+      - name: Verify DEV Deployment
+        run: |
+          echo "🔍 Verificando que el servidor DESARROLLO esté respondiendo..."
+
+          # Esperar unos segundos para que el servicio se inicie completamente
+          sleep 15
+
+          # Construir URL basándose en variables de entorno para DEV
+          SERVER_URL="https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}/dev"
+          echo "🌐 Verificando DESARROLLO: $SERVER_URL"
+
+          # Verificar que el servidor responde
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$SERVER_URL" --max-time 30 || echo "000")
+
+          if [ "$response" = "200" ]; then
+            echo "✅ Servidor DESARROLLO responde correctamente (HTTP $response)"
+            echo "🌐 Sitio DESARROLLO accesible en: $SERVER_URL"
+            
+            # Verificar también que CERT sigue funcionando
+            CERT_URL="https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}/cert"
+            cert_response=$(curl -s -o /dev/null -w "%{http_code}" "$CERT_URL" --max-time 15 || echo "000")
+            
+            if [ "$cert_response" = "200" ]; then
+              echo "✅ CERTIFICACIÓN también responde correctamente (HTTP $cert_response)"
+              echo "🎉 Deploy DESARROLLO exitoso SIN afectar CERTIFICACIÓN!"
+            else
+              echo "⚠️ CERTIFICACIÓN no responde (HTTP $cert_response) - podría estar afectada"
+            fi
+          else
+            echo "⚠️ Servidor DESARROLLO no responde como se esperaba (HTTP $response)"
+            echo "🔍 Obteniendo logs del servidor DESARROLLO para diagnóstico..."
+            
+            # Crear script temporal para obtener logs
+            ssh -o StrictHostKeyChecking=no ${{ secrets.SS01_ORACLE_CLOUD_USERNAME }}@${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} '
+              echo "📋 Últimos logs de PM2 DESARROLLO:"
+              cd '"${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"'
+              sudo pm2 logs siasis-dev --lines 15 --nostream
+              
+              echo "🔍 Estado completo de PM2 (DEV + CERT):"
+              sudo pm2 status
+              
+              echo "🌐 Verificando puerto 5000 (DEV):"
+              sudo ss -tlnp | grep :5000
+              
+              echo "🌐 Verificando puerto 5001 (CERT):"
+              sudo ss -tlnp | grep :5001
+              
+              echo "🌐 Verificando puerto 443 (Nginx):"
+              sudo ss -tlnp | grep :443
+              
+              echo "🔍 Estado de Nginx:"
+              sudo systemctl status nginx --no-pager
+              
+              echo "🔍 Verificando procesos Node.js:"
+              ps aux | grep node | grep -v grep
+            '
+            
+            echo "ℹ️ Deploy DESARROLLO completado pero verificación falló - revisar logs arriba"
+          fi
+
+      - name: DEV Deployment Summary
+        if: always()
+        run: |
+          echo "📊 RESUMEN DEL DEPLOYMENT DESARROLLO"
+          echo "==================================="
+          echo "🏷️ Entorno: DESARROLLO (D)"
+          echo "🏷️ Repositorio: ${{ github.repository }}"
+          echo "🌿 Rama: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "👤 Autor: ${{ github.actor }}"
+          echo "⏰ Tiempo: $(date)"
+          echo "📍 Servidor: ${{ secrets.SS01_ORACLE_CLOUD_SERVER_IP }} (Compartido con CERT)"
+          echo "📂 Ruta: ${{ secrets.SS01_ORACLE_CLOUD_UBUNTU_PROYECT_PATH }}"
+          echo "🌐 URL DEV: https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}/dev"
+          echo "🔗 URL CERT: https://${{ secrets.SS01_ORACLE_CLOUD_DOMAIN }}/cert"
+          echo "🛠️ Proceso PM2: siasis-dev"
+          echo "🔗 Puerto interno: 5000"
+          echo "⚠️ NOTA: Instancia compartida - CERT no debe verse afectado"
+          echo "==================================="

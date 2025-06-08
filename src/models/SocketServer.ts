@@ -11,7 +11,7 @@ import Sockets from "./Sockets";
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
-const NODE_ENV = process.env.NODE_ENV || "D"; // P=Producción, D=Desarrollo, C=Certificación
+const ENTORNO = process.env.ENTORNO || "D"; // P=Producción, D=Desarrollo, C=Certificación, L=Local
 const USE_HTTPS = process.env.USE_HTTPS === "true";
 const SSL_KEY_PATH = process.env.SSL_KEY_PATH || "./ssl/private.key";
 const SSL_CERT_PATH = process.env.SSL_CERT_PATH || "./ssl/certificate.crt";
@@ -30,6 +30,7 @@ class SocketServer {
     // Crear servidor HTTP o HTTPS según configuración
     // PRODUCCIÓN: HTTPS en puerto 443 con certificados SSL
     // DEV/CERT: HTTP en puertos 4000/5000 (Nginx maneja SSL)
+    // LOCAL: HTTP simple en cualquier puerto
     if (USE_HTTPS && this.port === 443) {
       try {
         console.log("🔍 Intentando cargar certificados SSL...");
@@ -64,26 +65,30 @@ class SocketServer {
   }
 
   private getEnvironmentName(): string {
-    switch (NODE_ENV) {
+    switch (ENTORNO) {
       case "P":
         return "PRODUCCIÓN";
       case "D":
         return "DESARROLLO";
       case "C":
         return "CERTIFICACIÓN";
+      case "L":
+        return "LOCAL";
       default:
         return "DESARROLLO";
     }
   }
 
   private getEnvironmentEmoji(): string {
-    switch (NODE_ENV) {
+    switch (ENTORNO) {
       case "P":
         return "🚀";
       case "D":
         return "🛠️";
       case "C":
         return "✅";
+      case "L":
+        return "🏠";
       default:
         return "🛠️";
     }
@@ -94,7 +99,7 @@ class SocketServer {
     this.app.use(cors());
     this.app.use(express.json());
 
-    // Rutas con base path (para dev/cert) o sin base path (para producción)
+    // Rutas con base path (para dev/cert) o sin base path (para producción/local)
     if (BASE_PATH) {
       // Para DESARROLLO y CERTIFICACIÓN (con base path)
       this.app.use(`${BASE_PATH}/api`, authRoutes);
@@ -122,13 +127,29 @@ class SocketServer {
         });
       });
     } else {
-      // Para PRODUCCIÓN (sin base path) - RETROCOMPATIBILIDAD TOTAL
+      // Para PRODUCCIÓN y LOCAL (sin base path) - RETROCOMPATIBILIDAD TOTAL
       this.app.use("/api", authRoutes);
 
       this.app.get("/", (_req, res) => {
-        res.send(
-          "🚀 Servidor de Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 2025"
-        );
+        const envName = this.getEnvironmentName();
+        const emoji = this.getEnvironmentEmoji();
+
+        if (ENTORNO === "L") {
+          // Respuesta JSON para LOCAL (más informativa para desarrollo)
+          res.json({
+            message: `${emoji} Servidor de Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 2025`,
+            environment: envName,
+            port: Number(this.port),
+            timestamp: new Date().toISOString(),
+            version: "2025.1.0",
+            mode: "LOCAL_DEVELOPMENT",
+          });
+        } else {
+          // Respuesta texto para PRODUCCIÓN (mantiene retrocompatibilidad)
+          res.send(
+            "🚀 Servidor de Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 2025"
+          );
+        }
       });
     }
 
@@ -165,11 +186,15 @@ class SocketServer {
       );
 
       // URLs específicas por ambiente
-      if (NODE_ENV === "P") {
+      if (ENTORNO === "P") {
         // PRODUCCIÓN
         console.log(
           `🌐 Accesible desde: ${protocol}://siasis-ss01-ie20935.duckdns.org`
         );
+      } else if (ENTORNO === "L") {
+        // LOCAL - Simple y directo
+        console.log(`🏠 Accesible desde: ${protocol}://localhost:${this.port}`);
+        console.log(`🔗 También desde: ${protocol}://127.0.0.1:${this.port}`);
       } else {
         // DESARROLLO Y CERTIFICACIÓN
         console.log(
@@ -179,7 +204,7 @@ class SocketServer {
 
       // Información adicional de debug
       console.log(`📊 Configuración:`);
-      console.log(`   - Ambiente: ${envName} (${NODE_ENV})`);
+      console.log(`   - Ambiente: ${envName} (${ENTORNO})`);
       console.log(`   - Puerto: ${this.port}`);
       console.log(`   - HTTPS: ${USE_HTTPS}`);
       console.log(`   - Base Path: ${BASE_PATH || "ninguno (root)"}`);
@@ -191,6 +216,13 @@ class SocketServer {
           BASE_PATH ? `${BASE_PATH}/socket.io/` : "/socket.io/"
         }`
       );
+
+      // Información específica para LOCAL
+      if (ENTORNO === "L") {
+        console.log(
+          `🏠 Modo LOCAL habilitado - Sin SSL, sin dominios externos`
+        );
+      }
     });
   }
 }
