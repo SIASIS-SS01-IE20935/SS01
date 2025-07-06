@@ -31,27 +31,26 @@ export default class Sockets {
         })`
       );
 
-      const SALA_POR_ROL =
-        SalasPorRol[
-          user!.Rol as
-            | RolesSistema.Auxiliar
-            | RolesSistema.Directivo
-            | RolesSistema.ProfesorPrimaria
-        ];
+      // const SALA_POR_ROL =
+      //   SalasPorRol[
+      //     user!.Rol as
+      //       | RolesSistema.Auxiliar
+      //       | RolesSistema.Directivo
+      //       | RolesSistema.ProfesorPrimaria
+      //   ];
 
       // Unir al usuario a una sala basada en su rol
-      if (user?.Rol) {
-        socket.join(SALA_POR_ROL);
-        console.log(
-          `🏠 [SS01] Usuario ${user.Nombre_Usuario} unido a sala: ${SALA_POR_ROL}`
-        );
-      }
+      // if (user?.Rol) {
+      //   socket.join(SALA_POR_ROL);
+      //   console.log(
+      //     `🏠 [SS01] Usuario ${user.Nombre_Usuario} unido a sala: ${SALA_POR_ROL}`
+      //   );
+      // }
 
       // Eventos específicos de asistencia
       importarEventosSocketTomaAsistenciaPersonal(
         this.io,
         socket,
-        SALA_POR_ROL,
         this.emitError
       );
 

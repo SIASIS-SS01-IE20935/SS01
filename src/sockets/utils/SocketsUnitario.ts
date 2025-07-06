@@ -4,11 +4,18 @@ export class SocketEmitter<T> {
   constructor(
     private socketConnection: Socket | SocketIOClient.Socket,
     private nombreEvento: string,
-    private data?: T
+    private data?: T,
+    private sala?: string
   ) {}
 
   execute() {
-    this.socketConnection.emit(this.nombreEvento, JSON.stringify(this.data));
+    if (this.sala) {
+      (this.socketConnection as Socket)
+        .to(this.sala)
+        .emit(this.nombreEvento, JSON.stringify(this.data));
+    } else {
+      this.socketConnection.emit(this.nombreEvento, JSON.stringify(this.data));
+    }
   }
 }
 

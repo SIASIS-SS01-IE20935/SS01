@@ -8,6 +8,7 @@ import { JWTPayload } from "../interfaces/shared/JWTPayload";
 import { getJwtKeyForRole } from "../lib/utils/env/getJWTKeyForRole";
 import { SocketUserData } from "../interfaces/UserData";
 import {
+  PermissionErrorTypes,
   SystemErrorTypes,
   TokenErrorTypes,
 } from "../interfaces/shared/apis/errors";
@@ -19,6 +20,10 @@ const ALLOWED_ROLES: RolesSistema[] = [
   RolesSistema.Directivo,
   RolesSistema.Auxiliar,
   RolesSistema.ProfesorPrimaria,
+  RolesSistema.ProfesorSecundaria,
+  RolesSistema.PersonalAdministrativo,
+  RolesSistema.Tutor,
+  //SOLO RESPONSABLES NO TENDRAN ACCESO A OPERACIONES EN IEMPO REAL
 ];
 
 /**
@@ -86,7 +91,7 @@ const socketAuth = (socket: Socket, next: (err?: ExtendedError) => void) => {
       console.error(
         `❌ [SS01] Rol ${rol} no autorizado para socket: ${socket.id}`
       );
-      const roleError = new Error(TokenErrorTypes.TOKEN_WRONG_ROLE);
+      const roleError = new Error(PermissionErrorTypes.INSUFFICIENT_PERMISSIONS);
       roleError.message = `Rol ${rol} no autorizado para este servicio`;
       return next(roleError);
     }
