@@ -1,20 +1,19 @@
-import { Socket } from "socket.io";
+import { Server, Socket } from "socket.io";
 
 export class SocketEmitter<T> {
   constructor(
     private socketConnection: Socket | SocketIOClient.Socket,
     private nombreEvento: string,
     private data?: T,
-    private sala?: string
+    private sala?: string,
+    private io?: Server
   ) {}
 
   execute() {
     if (this.sala) {
-      (this.socketConnection as Socket)
-        .to(this.sala)
-        .emit(this.nombreEvento, JSON.stringify(this.data));
+      this.io!.to(this.sala).emit(this.nombreEvento, JSON.stringify(this.data??""));
     } else {
-      this.socketConnection.emit(this.nombreEvento, JSON.stringify(this.data));
+      this.socketConnection.emit(this.nombreEvento, JSON.stringify(this.data??""));
     }
   }
 }

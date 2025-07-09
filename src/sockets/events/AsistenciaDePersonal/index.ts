@@ -57,15 +57,17 @@ const importarEventosSocketTomaAsistenciaPersonal = (
       modoRegistro,
       rol,
     }) => {
-      console.log({
-        id_o_dni,
-        nombres,
-        apellidos,
-        RegistroEntradaSalida,
-        Sala_Toma_Asistencia_de_Personal,
-        modoRegistro,
-        rol,
-      });
+      // 🔍 DEBUG
+      console.log("=== ANTES DE ENVIAR ===");
+      console.log("📤 Emisor:", socket.id);
+      console.log("🏠 Sala:", Sala_Toma_Asistencia_de_Personal);
+
+      const sala = io.sockets.adapter.rooms.get(
+        Sala_Toma_Asistencia_de_Personal
+      );
+      console.log("👥 En sala:", sala ? Array.from(sala) : "Vacía");
+      console.log("========================");
+
       new TomaAsistenciaPersonalSS01Events.SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_EMITTER(
         {
           id_o_dni,
@@ -75,7 +77,8 @@ const importarEventosSocketTomaAsistenciaPersonal = (
           rol,
           RegistroEntradaSalida,
         },
-        Sala_Toma_Asistencia_de_Personal
+        Sala_Toma_Asistencia_de_Personal,
+        io
       ).execute();
     }
   ).hand();

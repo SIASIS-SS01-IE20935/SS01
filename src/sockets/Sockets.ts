@@ -3,8 +3,6 @@ import { Server, Socket } from "socket.io";
 import socketAuth, { getAuthenticatedUser } from "../middlewares/socketAuth";
 
 import importarEventosSocketTomaAsistenciaPersonal from "./events/AsistenciaDePersonal";
-import { SalasPorRol } from "../assets/RolesTextos";
-import { RolesSistema } from "../interfaces/shared/RolesSistema";
 
 export default class Sockets {
   public io: Server;

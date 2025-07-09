@@ -105,14 +105,16 @@ export class TomaAsistenciaPersonalSS01Events {
 
     constructor(
       data: SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD,
-      sala: SALAS_TOMA_ASISTENCIA_PERSONAL_IE20935
+      sala: SALAS_TOMA_ASISTENCIA_PERSONAL_IE20935,
+      io: Server
     ) {
       this.socketEmitter =
         new SocketEmitter<SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD>(
           TomaAsistenciaPersonalSS01Events.socketConnection,
           NombresEventosTomaAsistenciaDePersonalSS01.SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL,
           data,
-          sala
+          sala,
+          io
         );
     }
 
