@@ -97,7 +97,7 @@ jobs:
             git log --oneline -5
             
             echo "📦 Instalando/actualizando dependencias de PRODUCCIÓN..."
-            npm install --production
+            npm install --save-dev @types/jsonwebtoken @types/node @types/express @types/cors
             
             echo "🏗️ Intentando compilar proyecto TypeScript..."
             if npm run build; then
