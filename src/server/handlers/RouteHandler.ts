@@ -63,7 +63,7 @@ function createServerResponse(
   const response: ServerResponse = {
     message: `${
       config.envEmoji
-    } Servidor de Web Sockets del Sistema de Control de Asistencia SIASIS - I.E. 20935 Asunción 8 | ${new Date().getFullYear()}`,
+    } Servidor de Web Sockets del Sistema de Control de Asistencia SIASIS | I.E. 20935 Asunción 8 | ${new Date().getFullYear()}`,
     environment: config.envName,
     port: config.port,
     timestamp: new Date().toISOString(),

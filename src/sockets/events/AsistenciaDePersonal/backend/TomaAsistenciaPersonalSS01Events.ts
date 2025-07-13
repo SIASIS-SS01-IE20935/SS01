@@ -5,10 +5,12 @@ import {
   MARQUE_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD,
   MessagePayload,
   SALUDAME_PAYLOAD,
+  SE_ACABA_DE_ELIMINAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD,
   SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD,
   UNIRME_A_SALA_DE_TOMA_DE_ASISTENCIA_DE_PERSONAL_PAYLOAD,
 } from "../interfaces/PayloadEventosAsisteciaDePersonal";
 import { SALAS_TOMA_ASISTENCIA_PERSONAL_IE20935 } from "../interfaces/SalasTomaAsistenciaDePersonal";
+import { ELIMINE_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD } from "../interfaces/PayloadEventosAsisteciaDePersonal";
 
 export class TomaAsistenciaPersonalSS01Events {
   public static socketConnection: Socket;
@@ -100,6 +102,25 @@ export class TomaAsistenciaPersonalSS01Events {
     }
   };
 
+  static ELIMINE_LA_ASISTENCIA_DE_ESTE_PERSONAL_HANDLER = class {
+    private socketHandler;
+
+    constructor(
+      callback: (data: ELIMINE_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD) => void
+    ) {
+      this.socketHandler =
+        new SocketHandler<ELIMINE_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD>(
+          TomaAsistenciaPersonalSS01Events.socketConnection,
+          NombresEventosTomaAsistenciaDePersonalSS01.ELIMINE_LA_ASISTENCIA_DE_ESTE_PERSONAL,
+          callback
+        );
+    }
+
+    hand() {
+      this.socketHandler.hand();
+    }
+  };
+
   static SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_EMITTER = class {
     private socketEmitter;
 
@@ -112,6 +133,29 @@ export class TomaAsistenciaPersonalSS01Events {
         new SocketEmitter<SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD>(
           TomaAsistenciaPersonalSS01Events.socketConnection,
           NombresEventosTomaAsistenciaDePersonalSS01.SE_ACABA_DE_MARCAR_LA_ASISTENCIA_DE_ESTE_PERSONAL,
+          data,
+          sala,
+          io
+        );
+    }
+
+    execute() {
+      this.socketEmitter.execute();
+    }
+  };
+
+  static SE_ACABA_DE_ELIMINAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_EMITTER = class {
+    private socketEmitter;
+
+    constructor(
+      data: SE_ACABA_DE_ELIMINAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD,
+      sala: SALAS_TOMA_ASISTENCIA_PERSONAL_IE20935,
+      io: Server
+    ) {
+      this.socketEmitter =
+        new SocketEmitter<SE_ACABA_DE_ELIMINAR_LA_ASISTENCIA_DE_ESTE_PERSONAL_PAYLOAD>(
+          TomaAsistenciaPersonalSS01Events.socketConnection,
+          NombresEventosTomaAsistenciaDePersonalSS01.SE_ACABA_DE_ELIMINAR_LA_ASISTENCIA_DE_ESTE_PERSONAL,
           data,
           sala,
           io
